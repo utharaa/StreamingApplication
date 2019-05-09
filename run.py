@@ -3,6 +3,7 @@ import redis
 import json
 from flask.helpers import make_response
 from datetime import datetime, timedelta
+import itertools
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -14,8 +15,16 @@ r = redis.Redis(host='localhost', port=6379, db=0)
 def show_transactions():
     response = {}
     i = 0
-    for key in sorted(r.scan_iter(match="transaction_*", count=100), reverse=True):
-        response[i] = json.loads(r.get(key))
+    dict = {}
+    for key in r.scan_iter(match="transaction_*"):
+        data = json.loads(r.get(key))
+        timekey = data['x']['time']
+        dict[timekey] = key
+
+    sorted(dict,reverse=True)
+    sorted_dict = itertools.islice(dict.items(), 0, 100)
+    for key,value in sorted_dict:
+        response[i] = json.loads(r.get(value))
         i += 1
 
     result = make_response(json.dumps(response))
@@ -27,7 +36,7 @@ def show_transactions():
 def transactions_count_per_minute():
     transaction_dict = {}
     last_one_hour_time = datetime.now() - timedelta(hours=1)
-    for key in sorted(r.scan_iter(match="transaction_*", count=100), reverse=True):
+    for key in r.scan_iter(match="transaction_*"):
         count = 1
         data = json.loads(r.get(key))
         if data is not None:
@@ -52,7 +61,7 @@ def transactions_count_per_minute():
 @app.route('/high_value_addr', methods=['GET'])
 def high_value_addr():
     addr_dict = {}
-    for key in sorted(r.scan_iter(match="transaction_*", count=100), reverse=True):
+    for key in r.scan_iter(match="transaction_*"):
         count = 1
         data = json.loads(r.get(key))
         if data is not None:
